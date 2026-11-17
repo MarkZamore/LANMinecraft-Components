@@ -25,6 +25,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - name: Reject malformed packet contracts
+        shell: pwsh
+        run: ./tools/Test-DesktopPacket.ps1 -ArtifactsDirectory artifacts/packet-contract
       - name: Build exact official runtime and desktop packets
         shell: pwsh
         run: |

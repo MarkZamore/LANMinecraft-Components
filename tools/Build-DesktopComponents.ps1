@@ -11,6 +11,7 @@ foreach ($directory in @($OutputDirectory,$DownloadDirectory,$StagingDirectory))
 $pins=Get-Content "$repository/data/desktop-runtime-sources.json" -Raw | ConvertFrom-Json
 $runtime=Join-Path $StagingDirectory 'desktop-runtime'
 [void][IO.Directory]::CreateDirectory($runtime)
+$expectedRuntimePaths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($pin in $pins.sources) {
     $archive=Join-Path $DownloadDirectory $pin.fileName
     if (!(Test-Path -LiteralPath $archive)) {
@@ -23,6 +24,7 @@ foreach ($pin in $pins.sources) {
         foreach ($entry in $zip.Entries) {
             if (!$entry.Name) { continue }
             Assert-DesktopRelativePath $entry.FullName
+            if (!$expectedRuntimePaths.Add($entry.FullName)) { throw 'Duplicate official runtime archive path.' }
             if ($entry.FullName.StartsWith('sdk/') -or $entry.FullName.StartsWith('shared/Microsoft.AspNetCore.App/')) { throw 'Unintended SDK/ASP.NET runtime.' }
             $target=Join-Path $runtime $entry.FullName
             [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))
@@ -34,6 +36,8 @@ foreach ($pin in $pins.sources) {
         }
     } finally { $zip.Dispose() }
 }
+$actualRuntimePaths=@(Get-ChildItem -LiteralPath $runtime -Recurse -File | ForEach-Object { [IO.Path]::GetRelativePath([IO.Path]::GetFullPath($runtime),$_.FullName).Replace('\','/') })
+if ($actualRuntimePaths.Count -ne $expectedRuntimePaths.Count -or @($actualRuntimePaths | Where-Object { !$expectedRuntimePaths.Contains($_) }).Count) { throw 'Runtime staging contains files outside the official archives.' }
 $runtimes=@(& "$runtime/dotnet.exe" --list-runtimes)
 if ($LASTEXITCODE -ne 0 -or $runtimes.Count -ne 2 -or !($runtimes -match '^Microsoft.NETCore.App 10\.0\.14 ') -or !($runtimes -match '^Microsoft.WindowsDesktop.App 10\.0\.14 ')) { throw 'The official private runtime layout is invalid.' }
 $assets=Join-Path $StagingDirectory 'assets'; $steam=Join-Path $StagingDirectory 'steam-native'
@@ -41,6 +45,7 @@ $assets=Join-Path $StagingDirectory 'assets'; $steam=Join-Path $StagingDirectory
 Copy-Item -LiteralPath "$repository/Program/Assets/Background.png" -Destination "$assets/Background.png" -Force
 Copy-Item -LiteralPath "$repository/Program/MinecraftWindowIconAssets.jar" -Destination "$assets/MinecraftWindowIconAssets.jar" -Force
 Copy-Item -LiteralPath "$repository/Program/Native/steam_api64.dll","$repository/Program/Native/LICENSE.steamworks-net.txt" -Destination $steam -Force
+if (@(Get-ChildItem -LiteralPath $assets -File -Recurse).Count -ne 2 -or @(Get-ChildItem -LiteralPath $steam -File -Recurse).Count -ne 2) { throw 'Asset/Steam staging contains unintended files.' }
 $definitions=@(
     @{kind='desktop-runtime';id='dotnet-10.0.14-win-x64';entryPath='host/fxr/10.0.14/hostfxr.dll';source=$runtime},
     @{kind='assets';id='launcher-assets-1';entryPath='Background.png';source=$assets},
