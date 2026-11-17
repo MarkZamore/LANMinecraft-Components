@@ -1,0 +1,61 @@
+name: Verify and publish desktop components
+
+on:
+  push:
+    branches: [main]
+    tags: ['desktop-components-*']
+    paths:
+      - 'Program/Assets/**'
+      - 'Program/MinecraftWindowIconAssets.jar'
+      - 'Program/Native/**'
+      - 'data/desktop-runtime-sources.json'
+      - 'tools/*Desktop*'
+      - '.github/workflows/desktop-components.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-components-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  desktop-components:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build exact official runtime and desktop packets
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/desktop-components-*') { $env:GITHUB_REF_NAME } else { "desktop-components-ci-$env:GITHUB_SHA" }
+          ./tools/Build-DesktopComponents.ps1 -OutputDirectory artifacts/desktop-release -DownloadDirectory artifacts/official-downloads -StagingDirectory artifacts/desktop-stage -Tag $tag -SourceCommit $env:GITHUB_SHA
+      - name: Verify deterministic packets
+        shell: pwsh
+        run: |
+          $first = Get-Content artifacts/desktop-release/desktop-components.json -Raw | ConvertFrom-Json
+          ./tools/Build-DesktopComponents.ps1 -OutputDirectory artifacts/desktop-repeat -DownloadDirectory artifacts/official-downloads -StagingDirectory artifacts/desktop-stage -Tag $first.revision -SourceCommit $env:GITHUB_SHA
+          $second = Get-Content artifacts/desktop-repeat/desktop-components.json -Raw | ConvertFrom-Json
+          foreach ($row in $first.components) {
+            $repeat = $second.components | Where-Object kind -CEQ $row.kind
+            if ($repeat.sha256 -cne $row.sha256 -or $repeat.manifestSha256 -cne $row.manifestSha256) { throw 'Desktop packets are not reproducible.' }
+          }
+      - name: Preserve exact desktop catalog
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-catalog-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          path: artifacts/desktop-release/desktop-components.json
+      - name: Publish immutable desktop release
+        if: startsWith(github.ref, 'refs/tags/desktop-components-')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'This desktop component release already exists. Choose a new immutable tag.' }
+          $catalog = Get-Content artifacts/desktop-release/desktop-components.json -Raw | ConvertFrom-Json
+          $assets = @($catalog.components | ForEach-Object { Join-Path artifacts/desktop-release ($_.id+'.pak') })
+          $assets += 'artifacts/desktop-release/desktop-components.json'
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --latest=false --title "Desktop components $env:GITHUB_REF_NAME" --notes 'Exact official .NET private runtime, launcher UI assets and Steam native ABI. Independent LMHOST01 pins; Java catalog unchanged.'
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop release publication failed.' }

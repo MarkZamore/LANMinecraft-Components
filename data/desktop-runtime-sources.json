@@ -1,0 +1,23 @@
+{
+  "sources": [
+    {
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.14/dotnet-runtime-10.0.14-win-x64.zip",
+      "sizeBytes": 36971047,
+      "fileName": "dotnet-runtime-10.0.14-win-x64.zip",
+      "id": "runtime",
+      "sha512": "a176095f1db69b42c81acc60940744078d6bf2d2ac643e418342aa9c81889f4bd13e42f4621b131f9e77e4bc781ad46e375956219df9a4f979031d2a5a8d93cd"
+    },
+    {
+      "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.14/windowsdesktop-runtime-10.0.14-win-x64.zip",
+      "sizeBytes": 39169811,
+      "fileName": "windowsdesktop-runtime-10.0.14-win-x64.zip",
+      "id": "windowsdesktop",
+      "sha512": "3214913702264452ac4b283b6fb2f6c14ab748cea36c7561608245c4a7d8cc10436a160032038865d039a016eab4975f65f1ae906de7615953fbec760f764ac4"
+    }
+  ],
+  "releaseDate": "2026-10-25",
+  "schemaVersion": 1,
+  "releaseMetadataUrl": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",
+  "runtimeVersion": "10.0.14",
+  "platform": "win-x64"
+}
