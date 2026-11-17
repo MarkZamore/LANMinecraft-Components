@@ -1,0 +1,25 @@
+# LANMinecraft Components
+
+Canonical Java components and runtime catalogs for [LANMinecraft](https://github.com/MarkZamore/LANMinecraft). The launcher downloads only the artifacts selected by the compatibility rules, verifies their exact size and SHA-256, and shares cached content across packs.
+
+`catalog.json` on `main` is the current catalog. Each `components-*` release contains its own immutable `catalog.json`, the identity adapter, notice overlay, native interoperability agent and legacy Forge installer class. Its `sourceCommit` names the exact component source revision. Component API 1 and the minimum launcher release determine reader compatibility.
+
+Java archive locations remain exact Adoptium releases. Steam transport locations remain exact e4steam releases. `data/java-catalog.json` owns Java pins and Minecraft selection rules. `data/steam-components.json` owns Steam compatibility, historical cleanup pins and reviewed coverage. Pack content, personal settings and worlds belong to their existing owners.
+
+## Build and verification
+
+Use Windows PowerShell 7 and a real JDK 25.0.2 with `java`, `javac` and `jar`. Sources retain their `Program` directory so component tests and the ASM relocator have stable relative paths.
+
+```powershell
+$env:JAVA_HOME = 'C:\Tools\jdk-25.0.2'
+./tools/Build-Components.ps1 -OutputDirectory artifacts/component-release/assets -VerifyReproducible
+./Program/NoticeOverlay/Test-NoticeOverlay.ps1 -JarPath artifacts/component-release/assets/launcher-notice-agent.jar
+```
+
+Manual build runs use an owned `artifacts/agent-runs/<task-id>` directory with a `RUN.json` describing ownership, purpose, expected size and cleanup deadline. The build scripts place temporary classes beside the selected outputs and delete staging in `finally`. JAR timestamps are fixed so identical sources rebuild to identical bytes. The identity adapter targets Java 17, the other delivered helpers target Java 8.
+
+## Publication
+
+Commit reviewed sources and data to `main`, then create a new immutable `components-*` tag at that commit. GitHub Actions builds and verifies the four artifacts, uploads all payloads and the release catalog, then updates `main/catalog.json` last. Existing release tags and assets are never overwritten. The launcher can continue using the last verified catalog and its locally available components while offline.
+
+The first source import preserves the tracked Java trees and catalog data from the LANMinecraft repository. Historical Steam metadata records hashes for recognizing old installed files; historical payloads are not republished.

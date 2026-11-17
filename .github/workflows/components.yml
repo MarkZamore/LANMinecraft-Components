@@ -1,0 +1,73 @@
+name: Verify and publish components
+
+on:
+  push:
+    branches: [main]
+    tags: ['components-*']
+    paths-ignore: ['catalog.json', 'README.md']
+  workflow_dispatch:
+
+concurrency:
+  group: components-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  components:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25.0.2'
+      - name: Build and verify deterministic artifacts
+        shell: pwsh
+        run: |
+          ./tools/Build-Components.ps1 -OutputDirectory artifacts/component-release/assets -VerifyReproducible
+          ./Program/NoticeOverlay/Test-NoticeOverlay.ps1 -JarPath artifacts/component-release/assets/launcher-notice-agent.jar
+      - name: Create and verify catalog
+        if: startsWith(github.ref, 'refs/tags/components-')
+        shell: pwsh
+        run: |
+          ./tools/New-ComponentCatalog.ps1 -OutputDirectory artifacts/component-release/assets -Tag $env:GITHUB_REF_NAME -SourceCommit $env:GITHUB_SHA
+          $catalog = Get-Content artifacts/component-release/assets/catalog.json -Raw | ConvertFrom-Json
+          foreach ($artifact in $catalog.artifacts) {
+            $path = Join-Path artifacts/component-release/assets $artifact.fileName
+            if ((Get-Item -LiteralPath $path).Length -ne $artifact.sizeBytes -or
+                (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $artifact.sha256) {
+              throw "Component catalog differs from built bytes: $($artifact.id)"
+            }
+          }
+      - name: Publish immutable release
+        if: startsWith(github.ref, 'refs/tags/components-')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'A component release with this tag already exists. Publish a new tag.' }
+          $assets = @('portable-identity-adapter.jar','launcher-notice-agent.jar','launcher-native-interop-agent.jar','LegacyForgeClientInstaller.class','catalog.json') |
+            ForEach-Object { Join-Path artifacts/component-release/assets $_ }
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "Launcher components $env:GITHUB_REF_NAME" --notes 'Verified Java components, compatibility data and Java catalog for component API 1.'
+          if ($LASTEXITCODE -ne 0) { throw 'Component release publication failed.' }
+      - name: Publish catalog pointer after all assets
+        if: startsWith(github.ref, 'refs/tags/components-')
+        shell: pwsh
+        run: |
+          git fetch origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch catalog branch.' }
+          git switch -C main origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot select catalog branch.' }
+          Copy-Item -LiteralPath artifacts/component-release/assets/catalog.json -Destination catalog.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- catalog.json
+          git commit -m "Publish $env:GITHUB_REF_NAME catalog [skip ci]"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot commit catalog pointer.' }
+          git push origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish catalog pointer.' }
