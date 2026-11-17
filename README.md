@@ -25,3 +25,9 @@ Commit reviewed sources and data to `main`, then create a new immutable `compone
 Catalog generation carries forward the previous published Steam builds and historical exact-file pins as cleanup history. Updating a current Steam entry therefore retains the evidence needed to recognize its previously installed bytes. This history contains metadata, while release assets contain the selected components.
 
 The first source import preserves the tracked Java trees and catalog data from the LANMinecraft repository. Historical Steam metadata records hashes for recognizing old installed files; historical payloads are not republished.
+
+## Launcher compatibility contract
+
+Before publishing a component candidate, CI checks it against `MarkZamore/LANMinecraft` at `main`. The candidate catalog references the current component source commit, and the exact candidate source is checked out under the launcher's isolated test source directory. `LANMINECRAFT_COMPONENT_TEST_CANDIDATE` selects the newly built payloads for Release with adapters and the full adapter matrix. A failing contract prevents release publication. Successful branch checks exercise the same candidate path without publishing assets or changing the current catalog.
+
+`Program/IdentityAdapters/Common/Verify-IdentityAdapter.ps1` replays a prepared game's saved aliases. It reads only the current `Minecraft/Launcher/Components/configurations` tree and resolves the saved adapter from the shared `Components/objects/<sha256>` cache. Use `-InstallRoot` for the Minecraft data directory, `-JavaHome` for the chosen JDK and `-StateJson` to select a particular pack's saved state. The optional `-LauncherSourceRoot` locates the launcher's modern authlib semantic verifier when the component sources live outside the usual `LocalSources` checkout.

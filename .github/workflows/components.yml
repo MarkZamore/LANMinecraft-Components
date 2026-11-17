@@ -31,10 +31,10 @@ jobs:
           ./tools/Build-Components.ps1 -OutputDirectory artifacts/component-release/assets -VerifyReproducible
           ./Program/NoticeOverlay/Test-NoticeOverlay.ps1 -JarPath artifacts/component-release/assets/launcher-notice-agent.jar
       - name: Create and verify catalog
-        if: startsWith(github.ref, 'refs/tags/components-')
         shell: pwsh
         run: |
-          ./tools/New-ComponentCatalog.ps1 -OutputDirectory artifacts/component-release/assets -Tag $env:GITHUB_REF_NAME -SourceCommit $env:GITHUB_SHA
+          $candidateTag = if ($env:GITHUB_REF -like 'refs/tags/components-*') { $env:GITHUB_REF_NAME } else { "components-ci-$env:GITHUB_SHA" }
+          ./tools/New-ComponentCatalog.ps1 -OutputDirectory artifacts/component-release/assets -Tag $candidateTag -SourceCommit $env:GITHUB_SHA
           $catalog = Get-Content artifacts/component-release/assets/catalog.json -Raw | ConvertFrom-Json
           foreach ($artifact in $catalog.artifacts) {
             $path = Join-Path artifacts/component-release/assets $artifact.fileName
@@ -43,6 +43,44 @@ jobs:
               throw "Component catalog differs from built bytes: $($artifact.id)"
             }
           }
+      - name: Checkout launcher compatibility contract
+        uses: actions/checkout@v5
+        with:
+          repository: MarkZamore/LANMinecraft
+          ref: main
+          path: launcher
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout exact candidate test sources
+        uses: actions/checkout@v5
+        with:
+          repository: MarkZamore/LANMinecraft-Components
+          ref: ${{ github.sha }}
+          path: launcher/LocalSources/LANMinecraft-Components-Tests
+          persist-credentials: false
+      - name: Setup launcher .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: launcher/global.json
+      - name: Verify candidate against launcher contracts
+        shell: pwsh
+        working-directory: launcher
+        env:
+          LANMINECRAFT_COMPONENT_TEST_CANDIDATE: ${{ github.workspace }}/artifacts/component-release/assets
+        run: |
+          ./Program.Tests/Test-Launcher.ps1 -Profile Release -WithAdapters
+          ./Program.Tests/Test-Launcher.ps1 -Profile AdaptersFull -NoBuild
+      - name: Preserve compact contract results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-contract-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            launcher/Program.Tests/TestResults/**/tests.trx
+            launcher/Program.Tests/TestResults/**/summary.json
+            artifacts/component-release/assets/catalog.json
       - name: Publish immutable release
         if: startsWith(github.ref, 'refs/tags/components-')
         shell: pwsh

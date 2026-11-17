@@ -8,8 +8,8 @@
 # change to IdentityAdapterMappingService is therefore invisible here until the pack has been
 # started once more.
 param(
-    # Defaults to JAVA_HOME, then to the Java the launcher runs 1.21.1 on: the shared JDK under
-    # Minecraft\Launcher\JavaRuntimes, one install per feature release rather than one per pack.
+    # Defaults to JAVA_HOME, then to the highest installed Java feature release
+    # under the launcher's shared JavaRuntimes directory.
     [string]$JavaHome,
 
     [string]$AdapterJar,
@@ -19,18 +19,21 @@ param(
 
     # The launcher's data folder - the one holding Launcher and Personal. Searched for when it is
     # not given, because it lives wherever the player put the launcher and not beside this repo.
-    [string]$InstallRoot
+    [string]$InstallRoot,
+
+    # Launcher source tools are used by the modern authlib semantic check.
+    [string]$LauncherSourceRoot
 )
 
 $ErrorActionPreference = "Stop"
 $commonRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSCommandPath))
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $commonRoot "..\..\.."))
 
-if (-not $AdapterJar) {
-    $AdapterJar = Join-Path $projectRoot "Program\Build\IdentityAdapters\Minecraft-1.21.1-NeoForge\portable-identity-adapter.jar"
-}
-if (-not (Test-Path -LiteralPath $AdapterJar -PathType Leaf)) {
-    throw "Adapter jar was not found: $AdapterJar. Build Program\Minecraft.csproj first."
+if (-not $LauncherSourceRoot) {
+    $enclosingLauncher = [IO.Path]::GetFullPath((Join-Path $projectRoot '..\..'))
+    if (Test-Path -LiteralPath (Join-Path $enclosingLauncher 'tools\Test-PortableSkinProfiles.ps1') -PathType Leaf) {
+        $LauncherSourceRoot = $enclosingLauncher
+    }
 }
 
 # Where the launcher keeps its data. It used to be assumed to sit inside this repository, which
@@ -38,14 +41,14 @@ if (-not (Test-Path -LiteralPath $AdapterJar -PathType Leaf)) {
 $installRoots = @(
     $InstallRoot,
     $env:LANMINECRAFT_ROOT,
-    (Join-Path $projectRoot "Minecraft"),
+    $(if ($LauncherSourceRoot) { Join-Path $LauncherSourceRoot 'Minecraft' }),
     (Join-Path ([Environment]::GetFolderPath("Desktop")) "Minecraft")
 ) | Where-Object { $_ -and (Test-Path -LiteralPath (Join-Path $_ "Launcher") -PathType Container) }
 
 if (-not $StateJson) {
     $StateJson = $installRoots |
         ForEach-Object {
-            Get-ChildItem -LiteralPath (Join-Path $_ "Launcher\IdentityAdapters") `
+            Get-ChildItem -LiteralPath (Join-Path $_ "Launcher\Components\configurations") `
                 -Recurse -File -Filter "adapter-state.json" -ErrorAction SilentlyContinue
         } |
         Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1 -ExpandProperty FullName
@@ -58,18 +61,44 @@ if (-not $StateJson -or -not (Test-Path -LiteralPath $StateJson -PathType Leaf))
 # A saved QA state can live outside its runtime. Use the supplied runtime root
 # when present, otherwise infer it from a normal launcher state location.
 if (-not $InstallRoot) {
-    $InstallRoot = (Get-Item -LiteralPath $StateJson).Directory.Parent.Parent.Parent.FullName
+    $configurations = (Get-Item -LiteralPath $StateJson).Directory.Parent.Parent
+    if ($configurations.Name -ne 'configurations' -or $configurations.Parent.Name -ne 'Components' -or
+        $configurations.Parent.Parent.Name -ne 'Launcher') {
+        throw 'Pass -InstallRoot for a state file outside the launcher Components/configurations tree.'
+    }
+    $InstallRoot = $configurations.Parent.Parent.Parent.FullName
 }
 if (-not $JavaHome) {
-    $JavaHome = if ($env:JAVA_HOME) { $env:JAVA_HOME }
-        else { Join-Path $installRoot "Launcher\JavaRuntimes\runtime\windows-x64\java-21" }
+    $JavaHome = if ($env:JAVA_HOME) { $env:JAVA_HOME } else {
+        Get-ChildItem -LiteralPath (Join-Path $InstallRoot 'Launcher\JavaRuntimes\runtime\windows-x64') -Directory |
+            Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'bin\java.exe') -PathType Leaf } |
+            ForEach-Object {
+                $releaseFile = Join-Path $_.FullName 'release'
+                if (Test-Path -LiteralPath $releaseFile -PathType Leaf) {
+                    $release = Get-Content -LiteralPath $releaseFile -Raw
+                    if ($release -match '(?m)^JAVA_VERSION="(?:1\.)?(\d+)') {
+                        [pscustomobject]@{ Home = $_.FullName; Major = [int]$Matches[1] }
+                    }
+                }
+            } | Sort-Object Major -Descending | Select-Object -First 1 -ExpandProperty Home
+    }
 }
+if (-not $JavaHome) { throw 'Pass -JavaHome or set JAVA_HOME to the JDK for this preflight.' }
 $java = Join-Path $JavaHome "bin\java.exe"
 if (-not (Test-Path -LiteralPath $java -PathType Leaf)) {
     throw "java.exe was not found under: $JavaHome. Pass -JavaHome, or set JAVA_HOME to any JDK 21 or newer."
 }
 
 $state = Get-Content -LiteralPath $StateJson -Raw | ConvertFrom-Json
+if (-not $AdapterJar) {
+    if ($state.adapterSha256 -notmatch '^[a-f0-9]{64}$') { throw 'The saved adapter SHA-256 is missing or invalid.' }
+    $AdapterJar = Join-Path $InstallRoot "Launcher\Components\objects\$($state.adapterSha256)\portable-identity-adapter.jar"
+    if (-not (Test-Path -LiteralPath $AdapterJar -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $AdapterJar -Algorithm SHA256).Hash.ToLowerInvariant() -ne $state.adapterSha256) {
+        throw 'The saved identity component is missing or fails its SHA-256 check. Prepare the pack again.'
+    }
+}
+if (-not (Test-Path -LiteralPath $AdapterJar -PathType Leaf)) { throw "Adapter JAR was not found: $AdapterJar" }
 $properties = [ordered]@{}
 foreach ($property in $state.properties.PSObject.Properties) {
     $properties[$property.Name] = [string]$property.Value
@@ -79,6 +108,7 @@ $targets = [System.Collections.Generic.List[object]]::new()
 foreach ($target in $state.targets) {
     $targets.Add([pscustomobject]@{ JarPath = [string]$target.jarPath; ClassName = [string]$target.className })
 }
+if ($targets.Count -eq 0) { throw 'The saved state has no adapter preflight targets.' }
 
 $propertyArguments = foreach ($key in $properties.Keys) { "-Dminecraft.portable.identity.$key=$($properties[$key])" }
 $classSourceArguments = @($state.preflightSources | ForEach-Object { "$($_.className)=$($_.jarPath)" })
@@ -159,7 +189,11 @@ foreach ($profileTarget in $modernAuthlibTargets) {
         if ($matchingVersion) { break }
     }
     if (-not $matchingVersion) { throw 'No installed runtime manifest matches the authlib selected by this adapter state.' }
-    & (Join-Path $projectRoot 'tools\Test-PortableSkinProfiles.ps1') `
+    $profileVerifier = if ($LauncherSourceRoot) { Join-Path $LauncherSourceRoot 'tools\Test-PortableSkinProfiles.ps1' }
+    if (-not $profileVerifier -or -not (Test-Path -LiteralPath $profileVerifier -PathType Leaf)) {
+        throw 'Pass -LauncherSourceRoot pointing at the launcher sources for modern authlib semantic checks.'
+    }
+    & $profileVerifier `
         -InstallRoot $installRoot -AdapterJar $AdapterJar -JavaHome $JavaHome -MinecraftVersions @($matchingVersion)
 }
 
