@@ -44,27 +44,32 @@ jobs:
             }
           }
       - name: Checkout launcher compatibility contract
-        uses: actions/checkout@v5
-        with:
-          repository: MarkZamore/LANMinecraft
-          ref: main
-          path: launcher
-          fetch-depth: 0
-          persist-credentials: false
+        shell: pwsh
+        run: |
+          # Native Windows DLL paths must fit even when D: has no DOS aliases.
+          # This is an ordinary source clone; test staging remains inside its artifacts/agent-runs.
+          $launcherRoot = 'D:\a\l'
+          if (Test-Path -LiteralPath $launcherRoot) { throw 'The short launcher source path is already occupied.' }
+          git clone --filter=blob:none --single-branch --branch main --no-tags https://github.com/MarkZamore/LANMinecraft.git $launcherRoot
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot clone launcher contract sources.' }
+          git -C $launcherRoot rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot identify launcher contract revision.' }
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "LAUNCHER_CONTRACT_ROOT=$launcherRoot"
       - name: Checkout exact candidate test sources
-        uses: actions/checkout@v5
-        with:
-          repository: MarkZamore/LANMinecraft-Components
-          ref: ${{ github.sha }}
-          path: launcher/LocalSources/LANMinecraft-Components-Tests
-          persist-credentials: false
+        shell: pwsh
+        run: |
+          $candidateSources = Join-Path $env:LAUNCHER_CONTRACT_ROOT 'LocalSources/LANMinecraft-Components-Tests'
+          git clone --filter=blob:none --no-checkout --single-branch --branch main --no-tags https://github.com/MarkZamore/LANMinecraft-Components.git $candidateSources
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot clone exact component test sources.' }
+          git -C $candidateSources checkout --detach $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot select exact component candidate revision.' }
       - name: Setup launcher .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          global-json-file: launcher/global.json
+          global-json-file: ${{ env.LAUNCHER_CONTRACT_ROOT }}/global.json
       - name: Verify candidate against launcher contracts
         shell: pwsh
-        working-directory: launcher
+        working-directory: ${{ env.LAUNCHER_CONTRACT_ROOT }}
         env:
           LANMINECRAFT_COMPONENT_TEST_CANDIDATE: ${{ github.workspace }}/artifacts/component-release/assets
         run: |
@@ -78,8 +83,8 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
           path: |
-            launcher/Program.Tests/TestResults/**/tests.trx
-            launcher/Program.Tests/TestResults/**/summary.json
+            ${{ env.LAUNCHER_CONTRACT_ROOT }}/Program.Tests/TestResults/**/tests.trx
+            ${{ env.LAUNCHER_CONTRACT_ROOT }}/Program.Tests/TestResults/**/summary.json
             artifacts/component-release/assets/catalog.json
       - name: Publish immutable release
         if: startsWith(github.ref, 'refs/tags/components-')
