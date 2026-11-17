@@ -8,7 +8,7 @@ Java archive locations remain exact Adoptium releases. Steam transport locations
 
 ## Build and verification
 
-Use Windows PowerShell 7 and a real JDK 25.0.2 with `java`, `javac` and `jar`. Sources retain their `Program` directory so component tests and the ASM relocator have stable relative paths.
+Use PowerShell 7 on Windows and a real JDK 25.0.2 with `java`, `javac` and `jar`. Published artifacts are built with Temurin 25.0.2 in CI. Other JDK distributions can add different `Created-By` metadata, so integration fixtures fetch the exact published artifacts and their hashes. Sources retain their `Program` directory so component tests and the ASM relocator have stable relative paths.
 
 ```powershell
 $env:JAVA_HOME = 'C:\Tools\jdk-25.0.2'
@@ -21,5 +21,7 @@ Manual build runs use an owned `artifacts/agent-runs/<task-id>` directory with a
 ## Publication
 
 Commit reviewed sources and data to `main`, then create a new immutable `components-*` tag at that commit. GitHub Actions builds and verifies the four artifacts, uploads all payloads and the release catalog, then updates `main/catalog.json` last. Existing release tags and assets are never overwritten. The launcher can continue using the last verified catalog and its locally available components while offline.
+
+Catalog generation carries forward the previous published Steam builds and historical exact-file pins as cleanup history. Updating a current Steam entry therefore retains the evidence needed to recognize its previously installed bytes. This history contains metadata, while release assets contain the selected components.
 
 The first source import preserves the tracked Java trees and catalog data from the LANMinecraft repository. Historical Steam metadata records hashes for recognizing old installed files; historical payloads are not republished.
