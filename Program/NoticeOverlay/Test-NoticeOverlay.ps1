@@ -80,4 +80,14 @@ Write-Host 'Notice agent packaging, Java8 floor, unchanged build and bytecode co
     foreach ($name in $originalEnvironment.Keys) {
         [Environment]::SetEnvironmentVariable($name, $originalEnvironment[$name], 'Process')
     }
+    if (Test-Path -LiteralPath $scratch -PathType Container) {
+        if (-not [IO.Path]::GetFullPath($scratch).StartsWith($buildPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Notice audit cleanup escaped its output directory.'
+        }
+        if (@(Get-ChildItem -LiteralPath $scratch -Recurse -Force |
+            Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) {
+            throw 'Linked notice audit output must be inspected before cleanup.'
+        }
+        Remove-Item -LiteralPath $scratch -Recurse -Force
+    }
 }
