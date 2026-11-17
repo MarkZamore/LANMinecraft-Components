@@ -7,11 +7,40 @@ function Assert-DesktopRelativePath([string]$Path) {
     foreach ($part in $Path.Split('/')) {
         if (!$part -or $part -in @('.','..') -or $part.StartsWith(' ') -or $part.EndsWith('.') -or $part.EndsWith(' ') -or
             $part.Length -gt 255 -or $part -match '[<>"|?*]' -or
-            $part -match '^(?i:CON|PRN|AUX|NUL|COM[1-9\u00b9\u00b2\u00b3]|LPT[1-9\u00b9\u00b2\u00b3])(?:\..*)?$') { throw "Unsafe component path: $Path" }
+            $part -match '^(?i:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[0-9\u00b9\u00b2\u00b3]|LPT[0-9\u00b9\u00b2\u00b3])(?:\..*)?$') { throw "Unsafe component path: $Path" }
     }
 }
 
 function Get-DesktopSha256([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+
+function Assert-DesktopOrdinaryPath([string]$Path) {
+    $cursor=[IO.Path]::GetFullPath($Path)
+    while ($cursor) {
+        try { if ([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint) { throw "Component path contains a reparse point: $cursor" } }
+        catch [IO.FileNotFoundException] { }
+        catch [IO.DirectoryNotFoundException] { }
+        $cursor=[IO.Path]::GetDirectoryName($cursor)
+    }
+}
+
+function Write-DesktopBytesAtomic([string]$Path,[byte[]]$Bytes) {
+    Assert-DesktopOrdinaryPath $Path
+    $temporary=$Path+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
+    $output=[IO.FileStream]::new($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    try { $output.Write($Bytes); $output.Flush($true) } finally { $output.Dispose() }
+    Assert-DesktopOrdinaryPath $Path
+    [IO.File]::Move($temporary,$Path,$true)
+}
+
+function Copy-DesktopFileAtomic([string]$Source,[string]$Target) {
+    Assert-DesktopOrdinaryPath $Target
+    $temporary=$Target+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'
+    $output=[IO.FileStream]::new($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    $input=[IO.File]::OpenRead($Source)
+    try { $input.CopyTo($output); $output.Flush($true) } finally { $input.Dispose(); $output.Dispose() }
+    Assert-DesktopOrdinaryPath $Target
+    [IO.File]::Move($temporary,$Target,$true)
+}
 
 function Write-DesktopPacket {
     param([string]$SourceDirectory, [string]$EntryPath, [string]$PacketPath, [string]$ManifestPath)
@@ -60,6 +89,7 @@ function Write-DesktopPacket {
                 $hash=[Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256); $copied=[long]0
                 try {
                     while (($count=$input.Read($buffer,0,$buffer.Length)) -gt 0) {
+                        if ($count -gt $file.Length-$copied) { throw 'Component source grew while packaging.' }
                         $writer.Write($buffer,0,$count); $bodyHash.AppendData($buffer,0,$count); $hash.AppendData($buffer,0,$count); $copied+=$count
                     }
                     if ($copied -ne $file.Length -or [Convert]::ToHexString($hash.GetHashAndReset()).ToLowerInvariant() -cne $file.Sha256) { throw 'Component source changed while packaging.' }
@@ -75,6 +105,9 @@ function Write-DesktopPacket {
 
 function Test-DesktopPacket {
     param([Parameter(Mandatory)]$Component,[Parameter(Mandatory)][string]$PacketPath,[Parameter(Mandatory)][string]$ManifestPath,[string]$ExtractDirectory)
+    Assert-DesktopOrdinaryPath $PacketPath
+    Assert-DesktopOrdinaryPath $ManifestPath
+    if ($ExtractDirectory) { Assert-DesktopOrdinaryPath $ExtractDirectory }
     if (([IO.FileInfo]$PacketPath).Length -ne [long]$Component.sizeBytes -or (Get-DesktopSha256 $PacketPath) -cne $Component.sha256) { throw 'Component packet pin mismatch.' }
     if ($Component.sizeBytes -gt 512MB -or $Component.manifestSizeBytes -gt 8MB -or $Component.manifestSizeBytes -lt 72) { throw 'Component size is out of bounds.' }
     $stream=[IO.File]::OpenRead($PacketPath); $reader=[IO.BinaryReader]::new($stream,[Text.UTF8Encoding]::new($false,$true),$true)
@@ -101,20 +134,16 @@ function Test-DesktopPacket {
                 $lastPath=$name; $offset+=[long]$length; if ($name -ceq $entry) { $found=$true }
                 $stream.Position=$prefix.Length+[long]$start
                 $fileHash=[Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
-                $output=$null; $remaining=[long]$length
+                $output=$null; $temporary=''; $remaining=[long]$length
                 try {
                     if ($ExtractDirectory) {
                         $target=Join-Path $ExtractDirectory $name
-                        $parent=[IO.Path]::GetDirectoryName($target)
-                        while ($parent -and $parent.Length -ge ([IO.Path]::GetFullPath($ExtractDirectory)).Length) {
-                            if ((Test-Path -LiteralPath $parent) -and ([IO.File]::GetAttributes($parent) -band [IO.FileAttributes]::ReparsePoint)) { throw 'Component extraction directory is a reparse point.' }
-                            $parent=[IO.Path]::GetDirectoryName($parent)
-                        }
+                        Assert-DesktopOrdinaryPath $target
                         [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))
                         if ((Test-Path -LiteralPath $target) -and ([IO.File]::GetAttributes($target) -band [IO.FileAttributes]::ReparsePoint)) { throw 'Component extraction target is a reparse point.' }
                         $matches=(Test-Path -LiteralPath $target -PathType Leaf) -and ([IO.FileInfo]$target).Length -eq $length -and
                             (Get-DesktopSha256 $target) -ceq [Convert]::ToHexString($digest).ToLowerInvariant()
-                        if (!$matches) { $output=[IO.File]::Create($target) }
+                        if (!$matches) { $temporary=$target+'.'+[Guid]::NewGuid().ToString('N')+'.tmp'; $output=[IO.FileStream]::new($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None) }
                     }
                     $buffer=[byte[]]::new(65536)
                     while ($remaining -gt 0) {
@@ -122,11 +151,12 @@ function Test-DesktopPacket {
                         $fileHash.AppendData($buffer,0,$read); if ($output) { $output.Write($buffer,0,$read) }; $remaining-=$read
                     }
                     if (![Security.Cryptography.CryptographicOperations]::FixedTimeEquals($digest,$fileHash.GetHashAndReset())) { throw "Component file hash mismatch: $name" }
+                    if ($output) { $output.Flush($true); $output.Dispose(); $output=$null; Assert-DesktopOrdinaryPath $target; [IO.File]::Move($temporary,$target,$true) }
                 } finally { $fileHash.Dispose(); if ($output) { $output.Dispose() } }
             }
             if (!$found -or $offset -ne $dataLength -or $header.Position -ne $prefix.Length) { throw 'Invalid complete component table.' }
         } finally { $table.Dispose(); $header.Dispose() }
-        [IO.File]::WriteAllBytes($ManifestPath,$prefix)
+        Write-DesktopBytesAtomic $ManifestPath $prefix
         [pscustomobject]@{ fileCount=$count; entryPath=$entry; dataLength=$dataLength }
     } finally { $reader.Dispose(); $stream.Dispose() }
 }

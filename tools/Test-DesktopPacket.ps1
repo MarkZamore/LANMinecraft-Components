@@ -35,4 +35,28 @@ Assert-Rejected 'case-collision' {param($b) [Array]::Copy([Text.Encoding]::ASCII
 Assert-Rejected 'file-hash' {param($b) $b[102]=$b[102] -bxor 1} $true
 Assert-Rejected 'empty-count' {param($b) [Array]::Clear($b,12,4)} $true
 Assert-Rejected 'reserved-header' {param($b) $b[20]=1} $true
+foreach ($name in @('CONIN$','CONOUT$.txt','COM0.dll','LPT0','COM¹.bin')) {
+    $rejected=$false
+    try { Assert-DesktopRelativePath $name } catch { $rejected=$true }
+    if (!$rejected) { throw 'A reserved Windows device path was accepted.' }
+    $cases.Add('reserved-'+$name)
+}
+$shared=Join-Path $ArtifactsDirectory ('shared-'+[Guid]::NewGuid().ToString('N')+'.txt')
+[IO.File]::WriteAllText($shared,'unchanged')
+$alias=$shared+'.alias'
+$null=New-Item -ItemType HardLink -Path $alias -Target $shared
+Write-DesktopBytesAtomic $alias ([Text.Encoding]::UTF8.GetBytes('replacement'))
+if ([IO.File]::ReadAllText($shared) -cne 'unchanged') { throw 'Atomic byte replacement modified another hard-link name.' }
+$cases.Add('atomic-bytes-preserves-hardlink-source')
+$copyAlias=$shared+'.copy-alias'
+$null=New-Item -ItemType HardLink -Path $copyAlias -Target $shared
+Copy-DesktopFileAtomic (Join-Path $source 'A.bin') $copyAlias
+if ([IO.File]::ReadAllText($shared) -cne 'unchanged') { throw 'Atomic copy replacement modified another hard-link name.' }
+$cases.Add('atomic-copy-preserves-hardlink-source')
+$repair=Join-Path $ArtifactsDirectory ('repair-'+[Guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($repair)
+$null=New-Item -ItemType HardLink -Path (Join-Path $repair 'A.bin') -Target $shared
+$null=Test-DesktopPacket -Component $component -PacketPath $packet -ManifestPath $manifest -ExtractDirectory $repair
+if ([IO.File]::ReadAllText($shared) -cne 'unchanged' -or (Get-DesktopSha256 (Join-Path $repair 'A.bin')) -cne (Get-DesktopSha256 (Join-Path $source 'A.bin'))) { throw 'Extraction repair modified another hard-link name.' }
+$cases.Add('atomic-extraction-preserves-hardlink-source')
 [pscustomobject]@{status='PASS';roundtrip=$true;rejected=$cases;checks=1+$cases.Count}
