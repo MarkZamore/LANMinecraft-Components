@@ -1,1 +1,5 @@
 *.MF whitespace=-blank-at-eof
+
+# Verified launcher-artwork payloads must retain their exact file hashes.
+Program/Assets/LauncherDesktop/Icons/*.svg -text
+Program/Assets/LauncherDesktop/LibrarySeed/*.zip -text
