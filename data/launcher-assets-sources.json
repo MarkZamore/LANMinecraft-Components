@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "Icons/back.svg",
+      "sizeBytes": 225,
+      "sha256": "f4259c0babb8c49fe39619e1292acbbd0f61dc2da43bf7e23d97aad6adf22954"
+    },
+    {
+      "path": "Icons/chevron.svg",
+      "sizeBytes": 216,
+      "sha256": "ad47cf14edafe7197590d8ff43753524e574cb45f3fb69c6a27e7625858bcfdb"
+    },
+    {
+      "path": "Icons/requirements-dot.svg",
+      "sizeBytes": 159,
+      "sha256": "73474009c1d6f2d6645f43d3ae52690d579e24d8e38704b3290baa822f9ec02c"
+    },
+    {
+      "path": "Icons/trash.svg",
+      "sizeBytes": 287,
+      "sha256": "eacdf04b55a553a098c472c5072d658bfb4c65432223bdf8e8cb0585b90aa2d1"
+    },
+    {
+      "path": "LibrarySeed/all-the-mods-10.zip",
+      "sizeBytes": 165637,
+      "sha256": "e67425c26d4a6520c6e19273207d45f2fb3869cdedcf2da03e6ee25d81010856"
+    },
+    {
+      "path": "LibrarySeed/all-the-mods-9.zip",
+      "sizeBytes": 203036,
+      "sha256": "7943a8b9ba3cab866474f8aa5062be6bc1868167dbe545e767bff1af0bbd81f9"
+    },
+    {
+      "path": "LibrarySeed/caves-and-dungeons.zip",
+      "sizeBytes": 594598,
+      "sha256": "24944fd48cbdaad3b6dab0cc2cc3e2534fde081daf8b553ce364fd5f06eab4ee"
+    },
+    {
+      "path": "LibrarySeed/minecraft-26-2.zip",
+      "sizeBytes": 66231,
+      "sha256": "83acd0b62f329b60070a99ba86a7de9bda7b00af61a2b9a235c40e9d21bc18d1"
+    },
+    {
+      "path": "LibrarySeed/terrafirma-rebirth.zip",
+      "sizeBytes": 165673,
+      "sha256": "8f30215be72943f9491ea6a374c0d0d8f6804277889b0e0cdf8684c8ada9b730"
+    }
+  ]
+}

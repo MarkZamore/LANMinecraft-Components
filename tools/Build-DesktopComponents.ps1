@@ -4,6 +4,7 @@ param([Parameter(Mandatory)][string]$OutputDirectory,[Parameter(Mandatory)][stri
       [Parameter(Mandatory)][string]$StagingDirectory,[string]$Tag='desktop-components-1',[string]$SourceCommit='')
 $ErrorActionPreference='Stop'
 . "$PSScriptRoot/DesktopPacket.ps1"
+. "$PSScriptRoot/LauncherAssetSources.ps1"
 $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if (!$SourceCommit) { $SourceCommit=(& git -C $repository rev-parse HEAD).Trim() }
 if ($SourceCommit -cnotmatch '^[0-9a-f]{40}$' -or $Tag -cnotmatch '^desktop-components-[A-Za-z0-9._-]+$') { throw 'Invalid immutable source revision/tag.' }
@@ -42,13 +43,12 @@ $runtimes=@(& "$runtime/dotnet.exe" --list-runtimes)
 if ($LASTEXITCODE -ne 0 -or $runtimes.Count -ne 2 -or !($runtimes -match '^Microsoft.NETCore.App 10\.0\.14 ') -or !($runtimes -match '^Microsoft.WindowsDesktop.App 10\.0\.14 ')) { throw 'The official private runtime layout is invalid.' }
 $assets=Join-Path $StagingDirectory 'assets'; $steam=Join-Path $StagingDirectory 'steam-native'
 [void][IO.Directory]::CreateDirectory($assets); [void][IO.Directory]::CreateDirectory($steam)
-Copy-Item -LiteralPath "$repository/Program/Assets/Background.png" -Destination "$assets/Background.png" -Force
-Copy-Item -LiteralPath "$repository/Program/MinecraftWindowIconAssets.jar" -Destination "$assets/MinecraftWindowIconAssets.jar" -Force
+Initialize-LauncherAssetStage $repository $assets
 Copy-Item -LiteralPath "$repository/Program/Native/steam_api64.dll","$repository/Program/Native/LICENSE.steamworks-net.txt" -Destination $steam -Force
-if (@(Get-ChildItem -LiteralPath $assets -File -Recurse).Count -ne 2 -or @(Get-ChildItem -LiteralPath $steam -File -Recurse).Count -ne 2) { throw 'Asset/Steam staging contains unintended files.' }
+if (@(Get-ChildItem -LiteralPath $steam -File -Recurse).Count -ne 2) { throw 'Steam staging contains unintended files.' }
 $definitions=@(
     @{kind='desktop-runtime';id='dotnet-10.0.14-win-x64';entryPath='host/fxr/10.0.14/hostfxr.dll';source=$runtime},
-    @{kind='assets';id='launcher-assets-1';entryPath='Background.png';source=$assets},
+    @{kind='assets';id='launcher-assets-2';entryPath='Background.png';source=$assets},
     @{kind='steam-native';id='steam-native-1';entryPath='steam_api64.dll';source=$steam})
 $components=@(); $checks=@()
 foreach ($definition in $definitions) {

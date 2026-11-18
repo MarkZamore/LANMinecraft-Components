@@ -5,7 +5,7 @@ on:
     branches: [main]
     tags: ['desktop-components-*']
     paths:
-      - 'Program/Assets/**'
+      - 'Program/Assets/Background.png'
       - 'Program/MinecraftWindowIconAssets.jar'
       - 'Program/Native/**'
       - 'data/desktop-runtime-sources.json'
