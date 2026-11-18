@@ -1,72 +1,72 @@
 {
   "schemaVersion": 1,
   "componentApiVersion": 1,
-  "revision": "components-1",
-  "sourceCommit": "065965f43de97a6c4626564d9b87ac7b36c6bf50",
+  "revision": "components-2",
+  "sourceCommit": "31ee8622a17c098ca19a1c285ff910af3a89cf4b",
   "minimumLauncherRelease": 1,
   "artifacts": [
     {
       "id": "identity-adapter",
       "fileName": "portable-identity-adapter.jar",
-      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-1/portable-identity-adapter.jar",
+      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-2/portable-identity-adapter.jar",
       "sizeBytes": 320092,
       "sha256": "4d78108284c966c6a457e7428966e8ae5ec5fd409cb8d5b60e66bf9f2e389c9c"
     },
     {
       "id": "notice-overlay",
       "fileName": "launcher-notice-agent.jar",
-      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-1/launcher-notice-agent.jar",
-      "sizeBytes": 221781,
-      "sha256": "6c4a6ce2d39a2a14a1404ad6baf883c84c8fb7e611636a5f510c7edfcbb1eaf9"
+      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-2/launcher-notice-agent.jar",
+      "sizeBytes": 223978,
+      "sha256": "97c7baa39184e6905d3ff76778a9e28af87dacd68c759018e5270490bd076d03"
     },
     {
       "id": "native-interop",
       "fileName": "launcher-native-interop-agent.jar",
-      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-1/launcher-native-interop-agent.jar",
+      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-2/launcher-native-interop-agent.jar",
       "sizeBytes": 2992,
       "sha256": "7f91fdd7cbf3475d59c41b2234f27baf92830ed0230af5dd4e5e160cc61083cd"
     },
     {
       "id": "legacy-forge-installer",
       "fileName": "LegacyForgeClientInstaller.class",
-      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-1/LegacyForgeClientInstaller.class",
+      "url": "https://github.com/MarkZamore/LANMinecraft-Components/releases/download/components-2/LegacyForgeClientInstaller.class",
       "sizeBytes": 4360,
       "sha256": "bff19c22985b4a4bee4e40333b8d61506fb30e74e912a234b2c404a09a9c7f62"
     }
   ],
   "componentRules": [
     {
-      "minimumMinecraftVersion": "1.7",
+      "runtimeKind": "java",
       "componentIds": [
         "identity-adapter"
       ],
       "minimumJavaMajorVersion": 17,
-      "runtimeKind": "java"
+      "minimumMinecraftVersion": "1.7"
     },
     {
+      "runtimeKind": "java",
+      "minimumJavaMajorVersion": 8,
       "componentIds": [
         "notice-overlay"
-      ],
-      "minimumJavaMajorVersion": 8,
-      "runtimeKind": "java"
+      ]
     },
     {
+      "runtimeKind": "java",
+      "minimumJavaMajorVersion": 8,
       "exclusiveMaximumMinecraftVersion": "1.13",
       "componentIds": [
         "native-interop"
-      ],
-      "minimumJavaMajorVersion": 8,
-      "runtimeKind": "java"
+      ]
     },
     {
+      "runtimeKind": "java",
       "loaders": [
         "forge"
       ],
+      "exclusiveMaximumMinecraftVersion": "1.7.0",
       "componentIds": [
         "legacy-forge-installer"
-      ],
-      "exclusiveMaximumMinecraftVersion": "1.7.0",
-      "runtimeKind": "java"
+      ]
     }
   ],
   "javaCatalog": {
@@ -2351,6 +2351,69 @@
         "sha256": "d55953ff626dab390c0c29076a11d32b764ea543f3979c81f3bfce9889caa909",
         "cacheFileId": 34119,
         "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v1/e4steam-fabric-quilt-mc26.1-26.3-v0.3.4-lanmc-native-ui.1.jar"
+      },
+      {
+        "fileName": "e4steam-forge-mc1.17.1-1.18.1-v0.3.4-lanmc-native-ui.2.jar",
+        "sizeBytes": 3805024,
+        "sha256": "1344aa71d9fe824dd9b01210f58f28569631f4c5747d6f040d82f65c7010a8d7",
+        "cacheFileId": 86776374443894821,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v2/e4steam-forge-mc1.17.1-1.18.1-v0.3.4-lanmc-native-ui.2.jar"
+      },
+      {
+        "fileName": "e4steam-forge-mc1.18.2-1.20.2-v0.3.4-lanmc-native-ui.2.jar",
+        "sizeBytes": 3801632,
+        "sha256": "3f397fc193f14d3c543b5ef9b4613bc149a21ca8e14bd93c39de3d1bc6f9553c",
+        "cacheFileId": 284738310465590484,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v2/e4steam-forge-mc1.18.2-1.20.2-v0.3.4-lanmc-native-ui.2.jar"
+      },
+      {
+        "fileName": "e4steam-neoforge-mc1.20.2-26.3-v0.3.4-lanmc-native-ui.2.jar",
+        "sizeBytes": 3800314,
+        "sha256": "2cfedc07ee3c84b9b980351ea094d5f898c858f37ff46dada24c621061761d2e",
+        "cacheFileId": 202641919273322572,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v2/e4steam-neoforge-mc1.20.2-26.3-v0.3.4-lanmc-native-ui.2.jar"
+      },
+      {
+        "fileName": "e4steam-fabric-quilt-mc1.17-1.18.2-v0.3.4-lanmc-native-ui.2.jar",
+        "sizeBytes": 3800700,
+        "sha256": "7dde29204bc3f50649bbf3b50163e96677a62467507d1218f9e58caa7785d006",
+        "cacheFileId": 566858244891098961,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v2/e4steam-fabric-quilt-mc1.17-1.18.2-v0.3.4-lanmc-native-ui.2.jar"
+      },
+      {
+        "fileName": "e4steam-fabric-quilt-mc1.19-1.21.11-v0.3.4-lanmc-native-ui.2.jar",
+        "sizeBytes": 3797496,
+        "sha256": "67d43d3047cf7d349b38d1addf024ef69de44d79d2b19f5f0092b024a565f1bd",
+        "cacheFileId": 467604509908858836,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v2/e4steam-fabric-quilt-mc1.19-1.21.11-v0.3.4-lanmc-native-ui.2.jar"
+      },
+      {
+        "fileName": "e4steam-fabric-quilt-mc26.1-26.3-v0.3.4-lanmc-native-ui.2.jar",
+        "sizeBytes": 3798124,
+        "sha256": "248fe6c4bf8f4decd0eea2c0883f15559eedd7491e6a9b5859b3bd1cafdcb26d",
+        "cacheFileId": 164661127483552991,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/native-lan-ui-v2/e4steam-fabric-quilt-mc26.1-26.3-v0.3.4-lanmc-native-ui.2.jar"
+      },
+      {
+        "fileName": "e4steam-legacy-fabric-mc1.6.4-v0.3.4-lf164.1.jar",
+        "sizeBytes": 2281194,
+        "sha256": "a35e616ee93e4cb9f6a9c2f0e9a06a36648e89639a07a6c47780b30c1b0c394e",
+        "cacheFileId": 735747100311282892,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/legacy-fabric-164-v1/e4steam-legacy-fabric-mc1.6.4-v0.3.4-lf164.1.jar"
+      },
+      {
+        "fileName": "e4steam-forge-mc1.12.x-v0.3.2-lanmc.1.jar",
+        "sizeBytes": 3108368,
+        "sha256": "a0e0593ec5bc45ab098b0b30711edc3c4167f9bac4c65cad296d612a6c242f40",
+        "cacheFileId": 724522722936996955,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/java8-world-sharing-v1/e4steam-forge-mc1.12.x-v0.3.2-lanmc.1.jar"
+      },
+      {
+        "fileName": "e4steam-forge-mc1.16.x-v0.3.2-lanmc.3.jar",
+        "sizeBytes": 2970778,
+        "sha256": "0188f8a9d5c22a13efcdae8b8e353b5144cc02407c935b04c3bee7516ce3d185",
+        "cacheFileId": 6913224949375650,
+        "downloadUrl": "https://github.com/MarkZamore/e4steam/releases/download/java8-world-sharing-v2/e4steam-forge-mc1.16.x-v0.3.2-lanmc.3.jar"
       }
     ],
     "coverage": [
