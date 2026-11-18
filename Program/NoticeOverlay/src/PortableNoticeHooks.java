@@ -17,6 +17,8 @@ public final class PortableNoticeHooks {
     static final long LIFE_MS = 7000;
     private static volatile Notice[] notices = new Notice[0];
     static volatile Properties style = new Properties();
+    private static volatile PortableNoticeFonts fonts;
+    private static volatile String renderedFontMode = "";
     static volatile double displayScale = 1;
     private static volatile long lastFrame;
     private static volatile String backend = "waiting";
@@ -54,15 +56,18 @@ public final class PortableNoticeHooks {
     public static void present(Class<?> api, long window) {
         // This must never propagate through GLFW/Display or introduce input handling.
         try {
+            PortableNoticeFonts faces = fonts;
+            if (faces == null) return;
             PortableNoticeRenderer renderer = RENDERERS.get();
             if (renderer == null || !renderer.matches(api, window)) {
                 renderer = new PortableNoticeRenderer(api, window);
                 RENDERERS.set(renderer);
             }
-            int count = renderer.present(notices, System.currentTimeMillis());
+            int count = renderer.present(notices, System.currentTimeMillis(), faces);
             if (count < 0) return;
             renderedCount = count;
             failure = "";
+            renderedFontMode = faces.mode;
             lastFrame = System.currentTimeMillis();
             backend = "org.lwjgl.sdl.SDLVideo".equals(api.getName()) ? "sdl3" : window == 0 ? "lwjgl2" : "lwjgl3";
         } catch (Throwable error) {
@@ -83,6 +88,7 @@ public final class PortableNoticeHooks {
         long lastHeartbeat = 0;
         try {
             if (Files.isRegularFile(theme)) style = readProperties(theme);
+            fonts = PortableNoticeFonts.load(directory, style);
         } catch (Exception error) { failed("Notification theme", error); }
         while (true) {
             try {
@@ -104,6 +110,7 @@ public final class PortableNoticeHooks {
                     Properties health = new Properties();
                     health.setProperty("timestampUnixMs", Long.toString(lastFrame));
                     health.setProperty("backend", backend);
+                    if (!renderedFontMode.isEmpty()) health.setProperty("fontMode", renderedFontMode);
                     health.setProperty("renderedCount", Integer.toString(renderedCount));
                     health.setProperty("pid", processId());
                     health.setProperty("transformations", Integer.toString(transformations));

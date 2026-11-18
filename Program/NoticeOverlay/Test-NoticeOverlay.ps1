@@ -1,5 +1,6 @@
 param(
-    [string]$JarPath = ''
+    [string]$JarPath = '',
+    [string]$RobotoFontDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -73,7 +74,9 @@ $classPath = @($JarPath, $hooksPath,
     (Join-Path $libRoot 'asm-tree-9.8.jar')) -join [IO.Path]::PathSeparator
 & $javac "-J-Djava.io.tmpdir=$toolTemporary" "-J-Duser.home=$toolProfile" --release 8 -Xlint:-options -encoding UTF-8 -cp $classPath -d $scratch (Join-Path $sourceRoot 'tests\TransformerAudit.java')
 if ($LASTEXITCODE -ne 0) { throw 'Presentation audit did not compile.' }
-& $java "-Djava.io.tmpdir=$toolTemporary" "-Duser.home=$toolProfile" -cp ($scratch + [IO.Path]::PathSeparator + $classPath) minecraft.portable.notice.TransformerAudit
+$fontArguments = @($scratch)
+if ($RobotoFontDirectory) { $fontArguments += (Resolve-Path -LiteralPath $RobotoFontDirectory).Path }
+& $java "-Djava.io.tmpdir=$toolTemporary" "-Duser.home=$toolProfile" "-Djava.awt.headless=true" -cp ($scratch + [IO.Path]::PathSeparator + $classPath) minecraft.portable.notice.TransformerAudit @fontArguments
 if ($LASTEXITCODE -ne 0) { throw 'Presentation audit failed.' }
 Write-Host 'Notice agent packaging, Java8 floor, unchanged build and bytecode contracts passed.'
 } finally {

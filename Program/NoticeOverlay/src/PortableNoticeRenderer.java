@@ -48,7 +48,7 @@ final class PortableNoticeRenderer {
     void disable() { retryAfter = System.currentTimeMillis() + 5000; initialized = false;
         for (int index = 0; index < cards.length; index++) cards[index] = null; }
 
-    int present(PortableNoticeHooks.Notice[] messages, long now) throws Exception {
+    int present(PortableNoticeHooks.Notice[] messages, long now, PortableNoticeFonts fonts) throws Exception {
         if (now < retryAfter) return -1;
         int active = 0;
         for (PortableNoticeHooks.Notice message : messages)
@@ -166,7 +166,7 @@ final class PortableNoticeRenderer {
                 String key = message.key() + "\n" + cardWidth + "\n" + scale;
                 if (card == null || !card.key.equals(key)) {
                     if (card != null) gl.i("GL11", "glDeleteTextures", card.texture);
-                    card = rasterize(message, key, cardWidth, scale);
+                    card = rasterize(message, key, cardWidth, scale, fonts);
                     cards[slot] = card;
                 }
                 float opacity = (float)Math.min(1d, Math.min((double)age / style.rise,
@@ -235,12 +235,11 @@ final class PortableNoticeRenderer {
         return shader;
     }
 
-    private Card rasterize(PortableNoticeHooks.Notice message, String key, int width, double scale) throws Exception {
+    private Card rasterize(PortableNoticeHooks.Notice message, String key, int width, double scale, PortableNoticeFonts fonts) throws Exception {
         int pad = Math.max(1, (int)Math.round(style.padding * scale));
         int fontSize = Math.max(8, (int)Math.round(style.fontSize * scale));
-        Font body = new Font(style.font, Font.PLAIN, fontSize);
-        if ("Dialog".equals(body.getFamily()) && !"Dialog".equals(style.font)) body = new Font("Segoe UI", Font.PLAIN, fontSize);
-        Font title = body.deriveFont(Font.BOLD);
+        Font body = fonts.regular(fontSize);
+        Font title = fonts.semiBold(fontSize);
         BufferedImage sizing = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D measure = sizing.createGraphics();
         String titleText = fit(message.title, measure.getFontMetrics(title), width - 2 * pad);
@@ -307,12 +306,10 @@ final class PortableNoticeRenderer {
 
     private static final class Style {
         final int width, gap, padding, radius, fontSize, background, border, text, muted, rise, fade;
-        final String font;
         Style(Properties values) {
             width = bounded(values, "width", 320, 160, 640); gap = bounded(values, "gap", 24, 0, 48);
             padding = bounded(values, "padding", 16, 4, 32); radius = bounded(values, "radius", 8, 0, 32);
             fontSize = bounded(values, "fontSize", 14, 10, 28);
-            font = values.getProperty("fontFamily", "Segoe UI");
             background = color(values, "bgArgb", 0xff2c2c2c); border = color(values, "borderArgb", 0x26ffffff);
             text = color(values, "textArgb", 0xffffffff); muted = color(values, "mutedArgb", 0xc5ffffff);
             rise = bounded(values, "riseMs", 200, 1, 1000); fade = bounded(values, "fadeMs", 350, 1, 1000);

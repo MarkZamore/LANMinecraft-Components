@@ -5,11 +5,18 @@ import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 /** Bytecode contract checks, run against the actual packaged transformer. */
 public final class TransformerAudit {
-    public static void main(String[] arguments) {
+    public static void main(String[] arguments) throws Exception {
         audit("org/lwjgl/glfw/GLFW", "glfwSwapBuffers", "(J)V", false);
         audit("org/lwjgl/opengl/Display", "swapBuffers", "()V", false);
         audit("org/lwjgl/sdl/SDLVideo", "SDL_GL_SwapWindow", "(J)Z", false);
@@ -21,7 +28,60 @@ public final class TransformerAudit {
         windowTitleContracts();
         snapshotContracts();
         scaleContracts();
+        fontContract(arguments);
         System.out.println("Presentation transformer contracts passed (LWJGL2, LWJGL3, SDL3, native refusal, unrelated class).");
+    }
+
+    private static void fontContract(String[] arguments) throws Exception {
+        if (arguments.length == 0) return; // Standalone bytecode probe.
+        Path fixture = Paths.get(arguments[0]);
+        Properties style = new Properties();
+        PortableNoticeFonts legacy = PortableNoticeFonts.load(fixture, style);
+        if (!legacy.mode.isEmpty() || !Font.DIALOG.equals(legacy.regular(14).getFamily())) {
+            throw new AssertionError("An older launcher without TTF resources stopped working");
+        }
+        style.setProperty("fontMode", PortableNoticeFonts.ROBOTO_MODE);
+        expectFontFailure(fixture, style);
+        Files.write(fixture.resolve("Roboto-Regular.ttf"), new byte[123720]);
+        expectFontFailure(fixture, style);
+        Files.delete(fixture.resolve("Roboto-Regular.ttf"));
+        if (arguments.length == 1) return;
+
+        Path bundle = Paths.get(arguments[1]);
+        PortableNoticeFonts fonts = PortableNoticeFonts.load(bundle, style);
+        Font regular = fonts.regular(14);
+        Font semiBold = fonts.semiBold(14);
+        if (!PortableNoticeFonts.ROBOTO_MODE.equals(fonts.mode) ||
+                !regular.getPSName().equals("Roboto-Regular") || !semiBold.getPSName().equals("Roboto-SemiBold")) {
+            throw new AssertionError("The renderer did not open both physical faces");
+        }
+        String sample = "Мой мир — ждём тебя";
+        if (regular.canDisplayUpTo(sample) != -1 || semiBold.canDisplayUpTo(sample) != -1) {
+            throw new AssertionError("A bundled face is missing Cyrillic notice characters");
+        }
+        BufferedImage image = new BufferedImage(320, 52, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setFont(semiBold);
+            graphics.drawString(sample, 16, 20);
+            graphics.setFont(regular);
+            graphics.drawString(sample, 16, 40);
+        } finally {
+            graphics.dispose();
+        }
+        boolean hasInk = false;
+        for (int y = 0; y < image.getHeight(); y++)
+            for (int x = 0; x < image.getWidth(); x++)
+                hasInk |= (image.getRGB(x, y) >>> 24) != 0;
+        if (!hasInk) throw new AssertionError("Java rendered no text with the bundled fonts");
+        System.out.println("Notice font contract passed: physical Roboto faces and Cyrillic rasterization.");
+    }
+
+    private static void expectFontFailure(Path directory, Properties style) throws Exception {
+        try {
+            PortableNoticeFonts.load(directory, style);
+            throw new AssertionError("Missing or modified font did not disable the bundled mode");
+        } catch (IOException expected) { }
     }
 
     private static void windowTitleContracts() {

@@ -112,6 +112,16 @@ Optional UTF-8 `style.properties` supplies `bgArgb`, `borderArgb`, `textArgb`,
 `padding`, `radius`, `riseMs`, and `fadeMs`. The launcher derives these values
 from its current design tokens. Defaults follow the launcher notice design.
 
+Launcher 542 also writes `fontMode=roboto-v1` and stages its embedded Regular 400
+and SemiBold 600 as `Roboto-Regular.ttf` and `Roboto-SemiBold.ttf` in the same
+portable session directory. Both sizes and SHA-256 digests are checked on the
+notice channel worker before Java loads the physical faces from those files.
+The font is neither installed nor downloaded by the component. The renderer
+reports `fontMode=roboto-v1` only after a successful presentation using the
+verified font pair. With missing or damaged files, the launcher uses its
+desktop notice. This extension is additive. Sessions from an older launcher
+without `fontMode` still use their requested system family or Java Dialog.
+
 A daemon thread reads snapshots every 250 ms and atomically writes
 `heartbeat.properties` every 500 ms. Its `timestampUnixMs` is the time of the
 last successful presentation hook; `pid`, `backend`, `renderedCount`,
@@ -126,6 +136,11 @@ after five seconds and a successful frame clears the error.
 $env:JAVA_HOME = 'C:\Tools\jdk-25.0.2'
 .\Program\NoticeOverlay\Test-NoticeOverlay.ps1
 ```
+
+Pass `-RobotoFontDirectory <launcher checkout>\Program\Assets\Fonts` to
+exercise the two shipped fonts with the same physical font loader, including
+Cyrillic rasterization. Legacy style and missing/damaged font tests also run
+without the launcher checkout.
 
 The build checks the vendored ASM 9.8 hashes and compiles runtime classes with
 `--release 8`. Its ASM is relocated into `minecraft.portable.notice.internal.asm`,
